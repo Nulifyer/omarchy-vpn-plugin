@@ -1,28 +1,28 @@
 # Project status
 
 Updated: 2026-10-24
-State: correcting live preflight
+State: verified release
 
 ## Project state
 
-The public MIT repository is installed through Omarchy. The initial hosted CI passed. Authentication succeeded, but preflight rejected a matching endpoint because nmcli escapes colon separators by default.
+The public MIT repository is installed through Omarchy. Version 1.5.1 system helpers were installed from the GitHub checkout and passed their hash and ownership check. Auto mode, local VPN configuration, and the original shell layout were preserved.
 
 ## Current batch
 
-Publish the unescaped-value fix and finish live system adoption.
+Release 1.5.1 completed with live verification.
 
 ## In progress
 
-Version 1.5.1 requests unescaped nmcli values consistently. Regression coverage includes endpoint validation and IPv6 DNS restoration. See docs/verification.md.
+None. See docs/verification.md for the completed checks and their limits.
 
 ## Next action
 
-Push the verified correction, update the installed plugin through Omarchy, and rerun its system installer.
+Observe VPN startup after the next user-initiated reboot if further boot verification is requested.
 
 ## Blockers
 
-None beyond the desktop authentication required by system installation.
+None. A full reboot remains untested and was not initiated during verification.
 
 ## Verification
 
-The 19 focused tests and native plugin checks pass. Live system installation, reconnection, and traffic-blocking checks remain pending. A full reboot remains untested.
+All 19 tests, native plugin validation, QML parsing, systemd verification, and hosted CI passed. The installed backend reports healthy protected traffic in Auto mode. No system services are failed.
