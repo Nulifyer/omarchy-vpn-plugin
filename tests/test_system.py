@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("vpn_system", REPO / "scripts/system.py")
@@ -82,6 +83,48 @@ class InstallationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             system.read_config(config)
         self.assertFalse(sentinel.exists())
+
+
+class ProfileValidationTests(unittest.TestCase):
+    def setUp(self):
+        self.config = system.read_config(REPO / "examples/config")
+        self.peers = "test-peer allowed-ips=0.0.0.0/0 endpoint=vpn.example.com:51820\n"
+
+    def query(self, *args, **kwargs):
+        if args[0] == "ufw":
+            value = "Status: active\n"
+        else:
+            field = args[args.index("-g") + 1]
+            values = {"connection.type": "wireguard", "wireguard.listen-port": "51820",
+                      "connection.interface-name": "wgclient", "ipv4.dns": "10.66.0.1",
+                      "wireguard.peer-routes": "yes", "ipv4.dns-priority": "-100",
+                      "ipv4.dns-search": "~.", "wireguard.peers": self.peers}
+            value = values[field]
+            # Match nmcli's observed default escaping of colon separators.
+            if "--escape" not in args or args[args.index("--escape") + 1] != "no":
+                value = value.replace(":", "\\:")
+            value += "\n"
+        return subprocess.CompletedProcess(args, 0, value, "")
+
+    def validate(self):
+        with tempfile.TemporaryDirectory() as root:
+            with patch.object(system, "run", side_effect=self.query), patch.object(system.shutil, "which", return_value="/usr/bin/tool"):
+                system.System(root).preflight(self.config, REPO / "examples/dnscrypt-proxy.toml")
+
+    def test_matching_endpoint_passes_without_nmcli_separator_escaping(self):
+        self.validate()
+
+    def test_different_endpoint_is_still_rejected(self):
+        self.peers = self.peers.replace("vpn.example.com", "other.example.com")
+        with self.assertRaisesRegex(ValueError, "matching VPN_ENDPOINT_HOST"):
+            self.validate()
+
+    def test_multiple_peers_or_missing_default_route_are_rejected(self):
+        original = self.peers
+        for peers in [original + original, original.replace("0.0.0.0/0", "10.66.0.0/24")]:
+            self.peers = peers
+            with self.subTest(peers=peers), self.assertRaisesRegex(ValueError, "full-tunnel peer"):
+                self.validate()
 
 
 class PolicyTests(unittest.TestCase):
@@ -201,6 +244,18 @@ class PolicyTests(unittest.TestCase):
         self.state(live_endpoint=False)
         state = self.execute("home-reply")
         self.assertIn("198.51.100.1", state["input_rules"][0])
+
+    def test_dns_snapshot_and_restore_preserve_ipv6_address(self):
+        profile = "11111111-1111-4111-8111-111111111111"
+        original = {f"ipv{version}.{key}": value for version in (4, 6)
+                    for key, value in [("ignore-auto-dns", "no"), ("dns", ""),
+                                       ("dns-search", ""), ("dns-priority", "0")]}
+        original["ipv6.dns"] = "2001:db8::53"
+        self.state(properties=original)
+        self.execute("configure-dns", profile)
+        self.assertEqual((self.var / "profiles" / profile / "ipv6_dns").read_text(), "2001:db8::53\n")
+        state = self.execute("configure-dns", "--restore-all")
+        self.assertEqual(state["properties"]["ipv6.dns"], "2001:db8::53")
 
     def test_guard_blocks_normal_tunnel_traffic_until_ready(self):
         state = self.execute("guard", "connecting")

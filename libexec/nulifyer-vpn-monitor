@@ -38,7 +38,7 @@ upstream_uuid() {
   local iface
   iface=$(ip -4 route show default 2>/dev/null | awk -v vpn="$VPN_INTERFACE" '$0 !~ ("dev " vpn "( |$)") { for (i=1; i<=NF; i++) if ($i == "dev") { print $(i+1); exit } }')
   [[ -n $iface ]] || return 0
-  nmcli -g GENERAL.CON-UUID device show "$iface" 2>/dev/null | sed -n '1p'
+  nmcli --escape no -g GENERAL.CON-UUID device show "$iface" 2>/dev/null | sed -n '1p'
 }
 
 is_trusted_uuid() {
@@ -59,12 +59,12 @@ read_mode() {
 }
 
 vpn_active() {
-  [[ $(nmcli -g GENERAL.STATE connection show "$VPN_CONNECTION" 2>/dev/null || true) == activated ]]
+  [[ $(nmcli --escape no -g GENERAL.STATE connection show "$VPN_CONNECTION" 2>/dev/null || true) == activated ]]
 }
 
 set_autoconnect() {
   local value=$1
-  if [[ $(nmcli -g connection.autoconnect connection show "$VPN_CONNECTION" 2>/dev/null || true) != "$value" ]]; then
+  if [[ $(nmcli --escape no -g connection.autoconnect connection show "$VPN_CONNECTION" 2>/dev/null || true) != "$value" ]]; then
     nmcli connection modify "$VPN_CONNECTION" connection.autoconnect "$value" connection.autoconnect-retries 0
   fi
 }

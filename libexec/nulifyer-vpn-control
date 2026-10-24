@@ -45,7 +45,7 @@ read_mode() {
   case "$mode" in
     on|off|auto) printf '%s\n' "$mode" ;;
     *)
-      if [[ $(nmcli -g connection.autoconnect connection show "$VPN_CONNECTION" 2>/dev/null || true) == yes ]]; then
+      if [[ $(nmcli --escape no -g connection.autoconnect connection show "$VPN_CONNECTION" 2>/dev/null || true) == yes ]]; then
         printf 'on\n'
       else
         printf 'off\n'
@@ -59,7 +59,7 @@ write_mode() {
 }
 
 vpn_active() {
-  [[ $(nmcli -g GENERAL.STATE connection show "$VPN_CONNECTION" 2>/dev/null || true) == activated ]]
+  [[ $(nmcli --escape no -g GENERAL.STATE connection show "$VPN_CONNECTION" 2>/dev/null || true) == activated ]]
 }
 
 disable_vpn() {
@@ -138,9 +138,9 @@ verify_setup() {
   latest=$(wg show "$VPN_INTERFACE" latest-handshakes 2>/dev/null | awk 'BEGIN { newest=0 } $2 > newest { newest=$2 } END { print newest }')
   latest=${latest:-0}
   printf 'policy_mode=%s\n' "$(read_mode)"
-  printf 'networkmanager_autoconnect=%s\n' "$(nmcli -g connection.autoconnect connection show "$VPN_CONNECTION" 2>/dev/null || printf unknown)"
+  printf 'networkmanager_autoconnect=%s\n' "$(nmcli --escape no -g connection.autoconnect connection show "$VPN_CONNECTION" 2>/dev/null || printf unknown)"
   printf 'status=%s\n' "$(status_value)"
-  printf 'vpn_nm=%s\n' "$(nmcli -g GENERAL.STATE connection show "$VPN_CONNECTION" 2>/dev/null || printf inactive)"
+  printf 'vpn_nm=%s\n' "$(nmcli --escape no -g GENERAL.STATE connection show "$VPN_CONNECTION" 2>/dev/null || printf inactive)"
   printf 'vpn_probe=%s\n' "$probe"
   (( latest > 0 )) && printf 'handshake_age_seconds=%s\n' "$((now - latest))" || printf 'handshake_age_seconds=none\n'
   printf 'guard=%s\n' "$(sed -n '1p' "$RUN_DIR/guard-mode" 2>/dev/null || printf unknown)"

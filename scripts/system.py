@@ -139,23 +139,23 @@ class System:
             if not shutil.which(command):
                 raise ValueError(f"Missing dependency: {command}. See README.md.")
         profile = config["VPN_CONNECTION"]
-        if run("nmcli", "-g", "connection.type", "connection", "show", profile).stdout.strip() != "wireguard":
+        if run("nmcli", "--escape", "no", "-g", "connection.type", "connection", "show", profile).stdout.strip() != "wireguard":
             raise ValueError("The selected NetworkManager connection must be WireGuard")
-        port = run("nmcli", "-g", "wireguard.listen-port", "connection", "show", profile).stdout.strip()
+        port = run("nmcli", "--escape", "no", "-g", "wireguard.listen-port", "connection", "show", profile).stdout.strip()
         if port != config["VPN_CLIENT_PORT"]:
             raise ValueError("VPN_CLIENT_PORT must match the profile's fixed wireguard.listen-port")
-        iface = run("nmcli", "-g", "connection.interface-name", "connection", "show", profile).stdout.strip()
+        iface = run("nmcli", "--escape", "no", "-g", "connection.interface-name", "connection", "show", profile).stdout.strip()
         if iface != config["VPN_INTERFACE"]:
             raise ValueError("VPN_INTERFACE must match the profile's connection.interface-name")
-        dns = run("nmcli", "-g", "ipv4.dns", "connection", "show", profile).stdout.splitlines()
+        dns = run("nmcli", "--escape", "no", "-g", "ipv4.dns", "connection", "show", profile).stdout.splitlines()
         if config["VPN_DNS"] not in dns:
             raise ValueError("VPN_DNS must be configured in the WireGuard profile's ipv4.dns")
-        routes = run("nmcli", "-g", "wireguard.peer-routes", "connection", "show", profile).stdout.strip()
-        dns_priority = run("nmcli", "-g", "ipv4.dns-priority", "connection", "show", profile).stdout.strip()
-        dns_search = run("nmcli", "-g", "ipv4.dns-search", "connection", "show", profile).stdout.strip()
+        routes = run("nmcli", "--escape", "no", "-g", "wireguard.peer-routes", "connection", "show", profile).stdout.strip()
+        dns_priority = run("nmcli", "--escape", "no", "-g", "ipv4.dns-priority", "connection", "show", profile).stdout.strip()
+        dns_search = run("nmcli", "--escape", "no", "-g", "ipv4.dns-search", "connection", "show", profile).stdout.strip()
         if routes != "yes" or int(dns_priority) >= 0 or "~." not in dns_search.split(","):
             raise ValueError("Enable WireGuard peer routes, negative ipv4.dns-priority, and ipv4.dns-search '~.'")
-        peers = run("nmcli", "-g", "wireguard.peers", "connection", "show", profile).stdout
+        peers = run("nmcli", "--escape", "no", "-g", "wireguard.peers", "connection", "show", profile).stdout
         endpoints = re.findall(r"endpoint=([^\s]+)", peers)
         endpoint = config["VPN_ENDPOINT_HOST"] + ":" + config["VPN_ENDPOINT_PORT"]
         if endpoints != [endpoint] or "allowed-ips=0.0.0.0/0" not in peers:
@@ -193,7 +193,7 @@ class System:
                 for unit in [*UNITS, "dnscrypt-proxy.service"]:
                     enabled[unit] = run("systemctl", "is-enabled", unit, check=False).stdout.strip()
                 for key in ("connection.autoconnect", "connection.autoconnect-retries"):
-                    nm_original[key] = run("nmcli", "-g", key, "connection", "show", config["VPN_CONNECTION"]).stdout.strip().split()[0]
+                    nm_original[key] = run("nmcli", "--escape", "no", "-g", key, "connection", "show", config["VPN_CONNECTION"]).stdout.strip().split()[0]
             active = {}
             if self.live:
                 active = {unit: run("systemctl", "is-active", "--quiet", unit, check=False).returncode == 0
@@ -211,7 +211,7 @@ class System:
                     if run("nmcli", "connection", "show", profile.name, check=False).returncode:
                         continue
                     record["profile_dns"][profile.name] = {
-                        key: run("nmcli", "-g", key, "connection", "show", profile.name).stdout.strip()
+                        key: run("nmcli", "--escape", "no", "-g", key, "connection", "show", profile.name).stdout.strip()
                         for key in DNS_PROPERTIES
                     }
         if record["vpn_connection"] != config["VPN_CONNECTION"]:
@@ -307,7 +307,7 @@ class System:
                     continue
                 arguments = [item for pair in properties.items() for item in pair]
                 run("nmcli", "connection", "modify", profile, *arguments)
-                iface = run("nmcli", "-g", "GENERAL.DEVICES", "connection", "show", profile).stdout.strip()
+                iface = run("nmcli", "--escape", "no", "-g", "GENERAL.DEVICES", "connection", "show", profile).stdout.strip()
                 if iface and iface != "--":
                     run("nmcli", "device", "reapply", iface)
             original_profiles = self.state / "original-profiles"

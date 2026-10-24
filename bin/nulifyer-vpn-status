@@ -39,7 +39,7 @@ guard=$(sed -n '1p' /run/nulifyer-vpn/guard-mode 2>/dev/null || true)
 guard=${guard:-unknown}
 
 if [[ -n ${VPN_CONNECTION:-} ]]; then
-  vpn_nm=$(nmcli -g GENERAL.STATE connection show "$VPN_CONNECTION" 2>/dev/null || true)
+  vpn_nm=$(nmcli --escape no -g GENERAL.STATE connection show "$VPN_CONNECTION" 2>/dev/null || true)
   vpn_nm=${vpn_nm:-inactive}
 fi
 
@@ -49,9 +49,9 @@ if [[ -n ${VPN_INTERFACE:-} ]]; then
 fi
 
 if [[ -n $upstream_iface ]]; then
-  upstream_name=$(nmcli -g GENERAL.CONNECTION device show "$upstream_iface" 2>/dev/null | sed -n '1p')
-  upstream_type=$(nmcli -g GENERAL.TYPE device show "$upstream_iface" 2>/dev/null | sed -n '1p')
-  upstream_uuid=$(nmcli -g GENERAL.CON-UUID device show "$upstream_iface" 2>/dev/null | sed -n '1p')
+  upstream_name=$(nmcli --escape no -g GENERAL.CONNECTION device show "$upstream_iface" 2>/dev/null | sed -n '1p')
+  upstream_type=$(nmcli --escape no -g GENERAL.TYPE device show "$upstream_iface" 2>/dev/null | sed -n '1p')
+  upstream_uuid=$(nmcli --escape no -g GENERAL.CON-UUID device show "$upstream_iface" 2>/dev/null | sed -n '1p')
 fi
 
 trusted=false

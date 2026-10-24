@@ -29,7 +29,12 @@ elif command == "nmcli":
     elif "connection.autoconnect" in args and "show" in args:
         output = state.get("autoconnect", "yes") + "\n"
     elif "modify" in args:
-        state["autoconnect"] = args[args.index("connection.autoconnect") + 1]
+        properties = args[args.index("modify") + 2:]
+        for key, value in zip(properties[::2], properties[1::2]):
+            if key == "connection.autoconnect":
+                state["autoconnect"] = value
+            else:
+                state.setdefault("properties", {})[key] = value
     elif "connection up" in joined:
         state["active"] = state.get("activation_ok", True)
         result = 0 if state["active"] else 1
@@ -37,6 +42,14 @@ elif command == "nmcli":
         state["active"] = False
     elif "--active" in args:
         output = state.get("uuid", "11111111-1111-4111-8111-111111111111") + "\n"
+    elif "-g" in args:
+        field = args[args.index("-g") + 1]
+        defaults = {"connection.type": "802-11-wireless", "ipv6.method": "auto", "GENERAL.DEVICES": ""}
+        value = state.get("properties", {}).get(field, defaults.get(field, ""))
+        output = value if "--escape" in args and args[args.index("--escape") + 1] == "no" else value.replace(":", "\\:")
+        output += "\n"
+    elif args[:2] == ["connection", "show"]:
+        pass
     else:
         raise RuntimeError(f"Unexpected nmcli call: {args}")
 elif command == "wg":

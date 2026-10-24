@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "nulifyer.vpn",
   "name": "WireGuard VPN",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "author": "Nulifyer",
   "description": "Wi-Fi-style status panel for the handshake and reachability-aware WireGuard policy",
   "kinds": [

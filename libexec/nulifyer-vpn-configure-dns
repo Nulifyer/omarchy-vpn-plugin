@@ -33,7 +33,7 @@ snapshot_profile() {
   rm -rf -- "$directory"
   install -d -m 0700 "$directory"
   for property in "${PROPERTIES[@]}"; do
-    nmcli -g "$property" connection show "$uuid" > "$(property_file "$uuid" "$property")"
+    nmcli --escape no -g "$property" connection show "$uuid" > "$(property_file "$uuid" "$property")"
   done
   printf 'managed\n' > "$directory/complete"
   chmod 0600 "$directory"/*
@@ -51,7 +51,7 @@ restore_profile() {
     value=$(<"$(property_file "$uuid" "$property")")
     nmcli connection modify "$uuid" "$property" "$value"
   done
-  active_iface=$(nmcli -g GENERAL.DEVICES connection show "$uuid" 2>/dev/null || true)
+  active_iface=$(nmcli --escape no -g GENERAL.DEVICES connection show "$uuid" 2>/dev/null || true)
   if [[ -n $active_iface && $active_iface != -- ]]; then
     nmcli device reapply "$active_iface" >/dev/null
   fi
@@ -96,7 +96,7 @@ iface=${2:-}
 apply_active=${3:-}
 valid_uuid "$uuid" || { printf 'Invalid connection UUID.\n' >&2; exit 2; }
 
-type=$(nmcli -g connection.type connection show "$uuid")
+type=$(nmcli --escape no -g connection.type connection show "$uuid")
 case "$type" in
   802-11-wireless|802-3-ethernet) ;;
   *) exit 0 ;;
@@ -116,7 +116,7 @@ nmcli connection modify "$uuid" \
   ipv4.dns-search '~.' \
   ipv4.dns-priority 100
 
-ipv6_method=$(nmcli -g ipv6.method connection show "$uuid")
+ipv6_method=$(nmcli --escape no -g ipv6.method connection show "$uuid")
 if [[ $ipv6_method != disabled && $ipv6_method != ignore ]]; then
   nmcli connection modify "$uuid" \
     ipv6.ignore-auto-dns yes \
