@@ -1,0 +1,19 @@
+# One existing NetworkManager WireGuard profile, with an IPv4 endpoint.
+VPN_CONNECTION='wgclient'
+VPN_INTERFACE='wgclient'
+VPN_ENDPOINT_HOST='vpn.example.com'
+VPN_ENDPOINT_PORT='51820'
+VPN_CLIENT_PORT='51820'
+# A reachable DNS server inside your VPN. It must answer ICMP health probes.
+VPN_DNS='10.66.0.1'
+# Space-separated NetworkManager connection UUIDs. Empty means trust none.
+TRUSTED_UUIDS=''
+# Optional trusted-network DNS and hairpin reply exception.
+TRUSTED_DNS=''
+TRUSTED_INTERFACE=''
+TRUSTED_GATEWAY=''
+# Must match the encrypted DNS providers used by DNSCrypt-proxy.
+DOH_IPV4='9.9.9.9, 149.112.112.9'
+HANDSHAKE_MAX_AGE='150'
+CONNECT_TIMEOUT='30'
+STATUS_MAX_AGE='20'

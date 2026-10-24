@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+iface=${1:-}
+action=${2:-}
+uuid=${CONNECTION_UUID:-}
+[[ -n $iface && -n $uuid ]] || exit 0
+
+type=$(nmcli -g connection.type connection show "$uuid" 2>/dev/null || true)
+case "$type" in
+  802-11-wireless|802-3-ethernet) ;;
+  *) exit 0 ;;
+esac
+
+case "$action" in
+  pre-up)
+    /usr/local/libexec/nulifyer-vpn-configure-dns "$uuid" "$iface" apply-active
+    /usr/local/libexec/nulifyer-vpn-control prepare "$uuid" up
+    ;;
+  up|dhcp4-change|dhcp6-change)
+    /usr/local/libexec/nulifyer-vpn-configure-dns "$uuid" "$iface"
+    /usr/local/libexec/nulifyer-vpn-home-reply
+    systemctl start --no-block nulifyer-vpn-monitor.service
+    ;;
+  down)
+    /usr/local/libexec/nulifyer-vpn-control prepare "$uuid" down
+    /usr/local/libexec/nulifyer-vpn-home-reply
+    systemctl start --no-block nulifyer-vpn-monitor.service
+    ;;
+esac

@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+set -u
+
+readonly status_file=/run/nulifyer-vpn/status
+readonly config_file=/etc/nulifyer-vpn/config
+readonly mode_file=/var/lib/nulifyer-vpn/mode
+
+[[ -r $config_file ]] && source "$config_file"
+STATUS_MAX_AGE=${STATUS_MAX_AGE:-20}
+
+state=$(sed -n '1p' "$status_file" 2>/dev/null || true)
+timestamp=$(sed -n '2p' "$status_file" 2>/dev/null || true)
+handshake=$(sed -n '3p' "$status_file" 2>/dev/null || true)
+probe=$(sed -n '4p' "$status_file" 2>/dev/null || true)
+now=$(date +%s)
+
+case "$state" in off|waiting|connecting|connected|failed) ;; *) state=unknown ;; esac
+if [[ ! $timestamp =~ ^[0-9]+$ ]] || (( now < timestamp || now - timestamp > STATUS_MAX_AGE )); then
+  state=unknown
+fi
+
+if [[ ${1:-} != --json ]]; then
+  printf '%s\n' "$state"
+  exit
+fi
+
+command -v jq >/dev/null || { printf 'Missing required command: jq\n' >&2; exit 1; }
+
+mode=$(sed -n '1p' "$mode_file" 2>/dev/null || true)
+case "$mode" in on|off|auto) ;; *) mode=off ;; esac
+intent=$mode
+vpn_nm=inactive
+upstream_iface=''
+upstream_name=''
+upstream_type=''
+upstream_uuid=''
+vpn_ip=''
+guard=$(sed -n '1p' /run/nulifyer-vpn/guard-mode 2>/dev/null || true)
+guard=${guard:-unknown}
+
+if [[ -n ${VPN_CONNECTION:-} ]]; then
+  vpn_nm=$(nmcli -g GENERAL.STATE connection show "$VPN_CONNECTION" 2>/dev/null || true)
+  vpn_nm=${vpn_nm:-inactive}
+fi
+
+if [[ -n ${VPN_INTERFACE:-} ]]; then
+  upstream_iface=$(ip -4 route show default 2>/dev/null | awk -v vpn="$VPN_INTERFACE" '$0 !~ ("dev " vpn "( |$)") { for (i=1; i<=NF; i++) if ($i == "dev") { print $(i+1); exit } }')
+  vpn_ip=$(ip -4 -o address show dev "$VPN_INTERFACE" 2>/dev/null | awk 'NR == 1 { split($4, address, "/"); print address[1] }')
+fi
+
+if [[ -n $upstream_iface ]]; then
+  upstream_name=$(nmcli -g GENERAL.CONNECTION device show "$upstream_iface" 2>/dev/null | sed -n '1p')
+  upstream_type=$(nmcli -g GENERAL.TYPE device show "$upstream_iface" 2>/dev/null | sed -n '1p')
+  upstream_uuid=$(nmcli -g GENERAL.CON-UUID device show "$upstream_iface" 2>/dev/null | sed -n '1p')
+fi
+
+trusted=false
+for trusted_uuid in ${TRUSTED_UUIDS:-}; do
+  [[ -n $upstream_uuid && $upstream_uuid == "$trusted_uuid" ]] && trusted=true
+done
+
+if [[ -z $upstream_iface ]]; then
+  network_class=none
+elif [[ $trusted == true ]]; then
+  network_class=trusted
+else
+  network_class=public
+fi
+
+case "$mode" in
+  on) effective=on ;;
+  off) effective=off ;;
+  auto)
+    if [[ $network_class == trusted ]]; then
+      effective=off
+    elif [[ $network_class == public ]]; then
+      effective=on
+    else
+      effective=waiting
+    fi
+    ;;
+esac
+
+case "$state" in
+  connected)
+    traffic=protected
+    route_mode=full
+    dns_mode=vpn
+    dns_server=${VPN_DNS:-}
+    ;;
+  off)
+    traffic=direct
+    route_mode=direct
+    if [[ -z $upstream_iface ]]; then
+      dns_mode=unavailable
+      dns_server=''
+    elif [[ $trusted == true ]]; then
+      dns_mode=dhcp
+      dns_server=automatic
+    else
+      dns_mode=doh
+      dns_server=127.0.0.1
+    fi
+    ;;
+  waiting|connecting|failed)
+    traffic=blocked
+    route_mode=blocked
+    dns_mode=blocked
+    dns_server=''
+    ;;
+  *)
+    traffic=unknown
+    route_mode=unknown
+    dns_mode=unknown
+    dns_server=''
+    ;;
+esac
+
+[[ $handshake =~ ^[0-9]+$ ]] || handshake=0
+if (( handshake > 0 && now >= handshake )); then
+  handshake_age=$((now - handshake))
+else
+  handshake_age=-1
+fi
+case "$probe" in reachable|unreachable|unavailable) ;; *) probe=unavailable ;; esac
+if [[ $timestamp =~ ^[0-9]+$ ]] && (( now >= timestamp )); then
+  status_age=$((now - timestamp))
+else
+  status_age=-1
+fi
+
+jq -cn \
+  --arg state "$state" \
+  --arg mode "$mode" \
+  --arg intent "$intent" \
+  --arg effective "$effective" \
+  --arg tunnel "${VPN_CONNECTION:-wgclient}" \
+  --arg vpnNm "$vpn_nm" \
+  --arg vpnIp "$vpn_ip" \
+  --arg upstreamInterface "$upstream_iface" \
+  --arg upstreamName "$upstream_name" \
+  --arg upstreamType "$upstream_type" \
+  --arg networkClass "$network_class" \
+  --arg probe "$probe" \
+  --arg guard "$guard" \
+  --arg traffic "$traffic" \
+  --arg routeMode "$route_mode" \
+  --arg dnsMode "$dns_mode" \
+  --arg dnsServer "$dns_server" \
+  --argjson handshakeAge "$handshake_age" \
+  --argjson statusAge "$status_age" \
+  --argjson trusted "$trusted" \
+  '{state: $state, mode: $mode, intent: $intent, effective: $effective,
+    tunnel: $tunnel, vpnNm: $vpnNm,
+    vpnIp: $vpnIp, upstreamInterface: $upstreamInterface,
+    upstreamName: $upstreamName, upstreamType: $upstreamType,
+    networkClass: $networkClass, trusted: $trusted,
+    probe: $probe, guard: $guard, traffic: $traffic,
+    routeMode: $routeMode, dnsMode: $dnsMode, dnsServer: $dnsServer,
+    handshakeAge: $handshakeAge, statusAge: $statusAge}'

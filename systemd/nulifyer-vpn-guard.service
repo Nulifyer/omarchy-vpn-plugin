@@ -1,0 +1,13 @@
+[Unit]
+Description=Install the VPN transition kill switch before networking
+DefaultDependencies=no
+After=local-fs.target
+Before=network-pre.target NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/nulifyer-vpn-control boot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
