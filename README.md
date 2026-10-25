@@ -181,6 +181,19 @@ changes or UFW reloads. It also supports the optional trusted-router hairpin
 reply rule. The monitor has 45 seconds to finish its 15-second activation
 attempt and subsequent health checks.
 
+Encrypted DNS bootstrap HTTPS connections use the physical default route,
+even while WireGuard owns the full-tunnel route. The exception covers only
+TCP port 443 at the configured `DOH_IPV4` addresses. The guard removes its
+policy-routing rules in Off mode and during uninstall. Other traffic to those
+addresses still follows the normal VPN policy.
+
+If an activated peer has no resolved endpoint at startup, the monitor seeds
+its runtime endpoint from the local cache. It preserves the hostname in the
+NetworkManager profile and never replaces an already resolved endpoint.
+A tunnel that remains unhealthy for `CONNECT_TIMEOUT` is deactivated with the
+guard closed. Subsequent monitor passes reconnect it, with recovery attempts
+limited to once per minute. These retries preserve the selected mode.
+
 ## Development
 
 ```bash

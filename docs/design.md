@@ -27,6 +27,18 @@ and can restore them. Shared locks serialize policy, firewall, and reply-rule
 changes. Endpoint reply rules are checked before insertion and replaced when
 the live endpoint changes.
 
+The guard also owns IPv4 policy rules at priority 20054, tagged with protocol
+242. Each rule selects TCP destination port 443 at one configured DoH address
+and uses the main routing table. This keeps encrypted DNS bootstrap independent
+of WireGuard's full-tunnel table. Other destinations and ports retain their
+normal route. The guard tracks its addresses under `/run/nulifyer-vpn` and
+reconciles or removes only matching rules.
+
+The monitor can seed a missing runtime endpoint from the root-owned cache
+without editing the NetworkManager peer configuration. An unhealthy active
+tunnel is retried at most once per minute with the guard closed. Endpoint
+seeding and restarts are logged to the service journal.
+
 `scripts/system.py` owns installation and removal. It parses configuration
 without executing shell code, validates inputs and the existing NetworkManager
 profile, saves original files once, and writes each privileged file through an

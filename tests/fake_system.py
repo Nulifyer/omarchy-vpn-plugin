@@ -18,7 +18,19 @@ state.setdefault("calls", []).append([command, *args])
 output = ""
 result = 0
 if command == "ip":
-    if state.get("upstream", True):
+    if args[:2] == ["-4", "rule"]:
+        operation = args[2]
+        rule = args[3:]
+        rules = state.setdefault("bootstrap_rules", [])
+        if operation == "show":
+            output = "matching bootstrap rule\n" if rule in rules else ""
+        elif operation == "add":
+            rules.append(rule)
+        elif operation == "del":
+            rules.remove(rule)
+        else:
+            raise RuntimeError(f"Unexpected ip rule call: {args}")
+    elif state.get("upstream", True):
         output = "default via 192.0.2.1 dev eth0 proto dhcp\n"
 elif command == "nmcli":
     joined = " ".join(args)
@@ -58,6 +70,13 @@ elif command == "wg":
     elif "endpoints" in args:
         if state.get("live_endpoint", True):
             output = "test-peer\t" + state.get("endpoint", "198.51.100.1") + ":51820\n"
+        elif state.get("active", False):
+            output = "test-peer\t(none)\n"
+    elif "peers" in args:
+        output = "test-peer\n"
+    elif args[:1] == ["set"]:
+        state["endpoint"] = args[-1].rsplit(":", 1)[0]
+        state["live_endpoint"] = True
     else:
         raise RuntimeError(f"Unexpected wg call: {args}")
 elif command == "ping":

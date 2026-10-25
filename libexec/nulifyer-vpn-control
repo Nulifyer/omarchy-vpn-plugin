@@ -135,7 +135,7 @@ verify_setup() {
   if ping -4 -q -n -c 1 -W 2 -I "$VPN_INTERFACE" -m 20054 "$VPN_DNS" >/dev/null 2>&1; then
     probe=reachable
   fi
-  latest=$(wg show "$VPN_INTERFACE" latest-handshakes 2>/dev/null | awk 'BEGIN { newest=0 } $2 > newest { newest=$2 } END { print newest }')
+  latest=$(wg show "$VPN_INTERFACE" latest-handshakes 2>/dev/null | awk 'BEGIN { newest=0 } $2 > newest { newest=$2 } END { print newest }' || true)
   latest=${latest:-0}
   printf 'policy_mode=%s\n' "$(read_mode)"
   printf 'networkmanager_autoconnect=%s\n' "$(nmcli --escape no -g connection.autoconnect connection show "$VPN_CONNECTION" 2>/dev/null || printf unknown)"

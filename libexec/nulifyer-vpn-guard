@@ -6,6 +6,8 @@ readonly STATE_DIR=/var/lib/nulifyer-vpn
 readonly RUN_DIR=/run/nulifyer-vpn
 readonly TABLE=nulifyer_vpn_guard
 readonly PROBE_MARK=20054
+readonly BOOTSTRAP_PRIORITY=20054
+readonly BOOTSTRAP_PROTOCOL=242
 
 [[ $EUID -eq 0 ]] || { printf 'This command must run as root.\n' >&2; exit 1; }
 # shellcheck source=/dev/null
@@ -36,6 +38,30 @@ refresh_endpoint() {
   fi
 }
 
+# Keep only the already-permitted DoH HTTPS traffic independent of the tunnel.
+# Otherwise its full-tunnel route can prevent DNS from bootstrapping WireGuard.
+bootstrap_rule() {
+  ip -4 rule "$1" priority "$BOOTSTRAP_PRIORITY" to "$2/32" \
+    ipproto tcp dport 443 table main protocol "$BOOTSTRAP_PROTOCOL"
+}
+
+sync_bootstrap_routes() {
+  local desired=$1 previous address existing
+  previous=$(cat "$RUN_DIR/doh-route-ips" 2>/dev/null || true)
+  for address in $previous; do
+    if ! grep -Fxq "$address" <<< "$desired"; then
+      while [[ -n $(bootstrap_rule show "$address") ]]; do
+        bootstrap_rule del "$address"
+      done
+    fi
+  done
+  for address in $desired; do
+    existing=$(bootstrap_rule show "$address")
+    [[ -n $existing ]] || bootstrap_rule add "$address"
+  done
+  write_atomic "$RUN_DIR/doh-route-ips" "$desired"
+}
+
 trusted_active=false
 for trusted in $TRUSTED_UUIDS; do
   if nmcli -t -f UUID connection show --active 2>/dev/null | grep -Fxq "$trusted"; then
@@ -52,11 +78,13 @@ esac
 
 if [[ $mode == off ]]; then
   nft list table inet "$TABLE" >/dev/null 2>&1 && nft delete table inet "$TABLE"
+  sync_bootstrap_routes ''
   write_atomic "$RUN_DIR/guard-mode" off
   exit 0
 fi
 
 refresh_endpoint
+sync_bootstrap_routes "$(tr ',' '\n' <<< "$DOH_IPV4" | awk '{$1=$1; if (NF) print}')"
 endpoint=$(sed -n '1p' "$STATE_DIR/endpoint-ip" 2>/dev/null || true)
 valid_ipv4 "$endpoint" || endpoint=127.0.0.1
 

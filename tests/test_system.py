@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -166,7 +167,7 @@ class PolicyTests(unittest.TestCase):
         source = source.replace('[[ $EUID -eq 0 ]]', '[[ 0 -eq 0 ]]')
         script = self.root / (name + ".bash")
         script.write_text(source)
-        subprocess.run(["bash", str(script), *args], check=True, env=self.env, capture_output=True, text=True)
+        self.output = subprocess.run(["bash", str(script), *args], check=True, env=self.env, capture_output=True, text=True).stdout
         return self.state()
 
     def status(self):
@@ -225,6 +226,59 @@ class PolicyTests(unittest.TestCase):
                 state = self.execute("monitor")
                 self.assertEqual(state["guard"], "connecting")
                 self.assertEqual(self.status(), "connecting")
+
+    def test_unresolved_active_peer_uses_cached_endpoint_without_rewriting_profile(self):
+        self.state(active=True, live_endpoint=False)
+        state = self.execute("monitor")
+        self.assertEqual(state["endpoint"], "198.51.100.1")
+        self.assertEqual(state["guard"], "ready")
+        self.assertIn(["wg", "set", "wgclient", "peer", "test-peer", "endpoint", "198.51.100.1:51820"], state["calls"])
+        self.assertFalse(any(call[0] == "nmcli" and "wireguard.peers" in call for call in state["calls"]))
+
+    def test_resolved_endpoint_is_not_replaced_by_cache(self):
+        self.state(active=True, endpoint="198.51.100.2")
+        state = self.execute("monitor")
+        self.assertFalse(any(call[:2] == ["wg", "set"] for call in state["calls"]))
+
+    def test_stuck_active_tunnel_retries_with_guard_closed_and_rate_limit(self):
+        self.state(active=True, reachable=False)
+        (self.run_dir / "unhealthy-since").write_text(str(int(time.time()) - 120))
+        state = self.execute("monitor")
+        self.assertFalse(state["active"])
+        self.assertEqual(state["guard"], "connecting")
+        self.assertEqual(self.status(), "failed")
+        self.assertEqual((self.var / "mode").read_text(), "auto\n")
+        self.state(active=True, calls=[])
+        state = self.execute("monitor")
+        self.assertTrue(state["active"])
+        self.assertFalse(any(call[0] == "nmcli" and "down" in call for call in state["calls"]))
+
+    def test_bootstrap_routes_are_port_scoped_idempotent_and_removed(self):
+        state = self.execute("guard", "connecting")
+        self.assertEqual(len(state["bootstrap_rules"]), 2)
+        for rule in state["bootstrap_rules"]:
+            self.assertEqual(rule[-8:], ["ipproto", "tcp", "dport", "443", "table", "main", "protocol", "242"])
+        self.assertEqual(len(self.execute("guard", "connecting")["bootstrap_rules"]), 2)
+        self.config.write_text(self.config.read_text().replace("9.9.9.9, 149.112.112.9", "192.0.2.53"))
+        rules = self.execute("guard", "connecting")["bootstrap_rules"]
+        self.assertEqual(len(rules), 1)
+        self.assertIn("192.0.2.53/32", rules[0])
+        self.assertEqual(self.execute("guard", "off")["bootstrap_rules"], [])
+
+    def test_verify_reports_inactive_tunnel_instead_of_exiting_silently(self):
+        failing_wg = self.bin / "wg"
+        failing_wg.unlink()
+        failing_wg.write_text("#!/bin/sh\nexit 1\n")
+        failing_wg.chmod(0o755)
+        systemctl = self.bin / "systemctl"
+        systemctl.write_text("#!/bin/sh\necho active\n")
+        systemctl.chmod(0o755)
+        (self.run_dir / "status").write_text(f"off\n{int(time.time())}\n0\nunavailable\n")
+        (self.run_dir / "guard-mode").write_text("off\n")
+        self.execute("control", "verify")
+        self.assertIn("vpn_nm=\n", self.output)
+        self.assertIn("handshake_age_seconds=none\n", self.output)
+        self.assertIn("guard=off\n", self.output)
 
     def test_exact_endpoint_reply_is_idempotent_updates_and_removes(self):
         self.execute("home-reply")
