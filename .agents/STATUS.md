@@ -1,28 +1,28 @@
 # Project status
 
 Updated: 2026-10-25
-State: recovery fix awaiting installation
+State: installed and verified, cold boot pending
 
 ## Project state
 
-The public MIT repository and installed checkout match release 1.5.1. This boot stalled before DNS became available. Selecting Auto after DNS recovery restored protected connectivity.
+Release 1.5.2 is public and installed through Omarchy. Its root-owned helpers match the GitHub checkout. Auto mode currently reports healthy protected traffic.
 
 ## Current batch
 
-Release 1.5.2 repairs encrypted DNS bootstrap routing, missing runtime endpoint recovery, and retries for unhealthy active tunnels.
+Repair DNS bootstrap routing and recovery of unhealthy activated tunnels.
 
 ## In progress
 
-Publish the tested fix, update the Omarchy checkout, and install the root-owned helpers.
+None. See docs/verification.md for exact checks and limits.
 
 ## Next action
 
-Install and verify release 1.5.2 from the GitHub checkout.
+Check VPN startup after the next user-initiated reboot.
 
 ## Blockers
 
-System-helper installation requires desktop administrator authentication. A full reboot has not been tested for the fix.
+None. Full cold-boot behavior remains unverified for this release.
 
 ## Verification
 
-The staged suite covers bootstrap-rule lifecycle, cached endpoint seeding, and guarded retry rate limits. Live release verification is pending. Exact results belong in docs/verification.md.
+The regression suite and CI passed. Live checks verified encrypted DNS bootstrap routing, guarded reconnection, ordinary traffic protection, and return to healthy Auto mode. Detailed evidence belongs in docs/verification.md.

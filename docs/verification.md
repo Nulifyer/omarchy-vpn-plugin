@@ -1,32 +1,64 @@
 # Release verification
 
-Version: 1.5.1
-Date: 2026-10-24
+Version: 1.5.2
+Date: 2026-10-25
+Code commit: `7654dd3`
+
+## Failure investigated
+
+The installed checkout and root helpers initially matched release 1.5.1.
+The VPN was Off when inspected, with its monitor running successfully.
+The current boot journal showed an activated WireGuard connection, followed
+by DNSCrypt-proxy reporting an unreachable encrypted DNS upstream. DNS became
+available after Off was selected. Selecting Auto then restored connectivity.
+
+Inspection showed that encrypted DNS bootstrap HTTPS traffic used the
+WireGuard full-tunnel table. The firewall permitted that traffic, but routing
+still depended on the tunnel. The monitor also left an activated but unhealthy
+tunnel running indefinitely. This sequence is consistent with a DNS bootstrap
+dependency. The failed peer's runtime endpoint was not captured before Off,
+so an unresolved endpoint during that boot remains an inference.
 
 ## Automated checks
 
-- Omarchy 4.0.6-1 native plugin validation passed.
-- Qt 6 qmlformat parsed Panel.qml successfully.
+- Omarchy native plugin validation and Qt 6 QML parsing passed.
 - Bash syntax checks passed for all eight scripts.
-- All 19 installer, profile validation, DNS restoration, and policy tests passed on Python 3.14.
-- systemd-analyze verified all four unit files.
-- GitHub CI passed for the release code: https://github.com/Nulifyer/omarchy-vpn-plugin/actions/runs/40129319457.
-- Public-source inspection found no local VPN endpoint, trusted network UUID, VPN DNS address, trusted gateway, credentials, or WireGuard private keys.
+- All 24 installer, profile validation, DNS restoration, and policy tests passed.
+- New cases cover port-scoped bootstrap rule reconciliation and removal,
+  cached endpoint seeding, preservation of resolved endpoints, guarded retry
+  rate limits, and diagnostic output with an absent tunnel.
+- GitHub CI passed for the release code:
+  https://github.com/Nulifyer/omarchy-vpn-plugin/actions/runs/40220385766.
+- Project continuity validation and Git whitespace checks passed.
 
-## Live installation
+## Live installation and checks
 
-The public MIT-licensed repository was installed through `omarchy plugin add`, then updated through `omarchy plugin update`. The installed checkout matched the published release code at commit `2304b79`.
+The release was published to the existing public MIT repository and installed
+with `omarchy plugin update nulifyer.vpn --yes`. The system installer completed
+from that GitHub checkout and verified its receipt. Installed helper and unit
+bytes matched the checkout, and those files were root-owned. Local VPN
+configuration and Auto mode were preserved. Native panel open and close IPC
+commands completed successfully.
 
-The system installer ran successfully from the GitHub checkout and verified its installed-file hashes and root ownership. Existing VPN configuration, WireGuard keys, and Auto mode were preserved. The existing bar configuration remained identical, with one VPN widget in its original position.
+IPv4 policy inspection selected the physical Wi-Fi default route for TCP port
+443 at a configured encrypted DNS upstream. UDP port 53 at the same address
+and ordinary external traffic still selected the WireGuard full-tunnel table.
+A certificate-verified HTTPS DNS request to the bootstrap upstream returned
+HTTP 200 over Wi-Fi. Ordinary HTTP traffic bound to Wi-Fi timed out, while the
+same HTTP target returned 301 through WireGuard.
 
-The panel opened through its native IPC handler and was visually checked. It displayed the selected Auto mode, reachable probe, handshake age, protected traffic, full-tunnel route, VPN DNS, and ready guard. No plugin load or JavaScript errors appeared in the verification interval.
-
-The guard service, reply service, and monitor timer were enabled. The monitor used its 45-second timeout and completed successfully. There were no failed system services after installation and reconnection.
-
-`nulifyer-vpn reconnect` retained Auto mode and first reported `guard=connecting`. A direct HTTP request bound to the physical Wi-Fi interface was blocked. The same HTTP endpoint returned status 301 through the WireGuard interface. The VPN then returned to connected status with a one-second-old handshake, reachable probe, protected traffic, VPN DNS, and a ready guard. Routing inspection selected the WireGuard interface for an external IPv4 address, and systemd-resolved selected the VPN DNS server with the default DNS routing domain.
-
-The first preflight attempt exposed nmcli's default colon escaping. Version 1.5.1 requests unescaped values consistently and includes regression cases for matching endpoints, wrong endpoints, multiple peers, missing default routes, and IPv6 DNS snapshot restoration.
+A live reconnect retained Auto mode and initially reported a closed connecting
+guard with no active VPN interface. An encrypted DNS HTTPS request succeeded
+during reconnection, while the ordinary Wi-Fi HTTP request remained blocked.
+The tunnel returned to connected status with a reachable probe, recent
+handshake, protected traffic, VPN DNS, and ready guard. A subsequent DNS query
+used the WireGuard link. The monitor completed successfully with its 45-second
+timeout, and there were no failed system services.
 
 ## Remaining limits
 
-A full reboot and use on a different physical network have not been tested for this packaged release. The successful live reconnection does not establish cold-boot behavior. File restoration and uninstall behavior were verified in staged filesystems rather than by removing the live working installation.
+A full reboot has not been tested with release 1.5.2. The reconnect and routing
+checks establish live behavior, not cold-boot ordering. Cached endpoint seeding
+and timed recovery were verified through command doubles rather than by
+removing a live peer or disabling the VPN server. Uninstall and file restoration
+were tested in staged filesystems. Another physical network remains untested.
