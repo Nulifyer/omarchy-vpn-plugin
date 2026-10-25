@@ -1,7 +1,7 @@
 # Project status
 
 Updated: 2026-10-25
-State: installed and verified, cold boot pending
+State: installed and verified after reboot
 
 ## Project state
 
@@ -9,7 +9,7 @@ Release 1.5.2 is public and installed through Omarchy. Its root-owned helpers ma
 
 ## Current batch
 
-Repair DNS bootstrap routing and recovery of unhealthy activated tunnels.
+Verify automatic startup after a user-initiated reboot.
 
 ## In progress
 
@@ -17,12 +17,12 @@ None. See docs/verification.md for exact checks and limits.
 
 ## Next action
 
-Check VPN startup after the next user-initiated reboot.
+No pending implementation. Diagnose only if another connectivity issue is reported.
 
 ## Blockers
 
-None. Full cold-boot behavior remains unverified for this release.
+None.
 
 ## Verification
 
-The regression suite and CI passed. Live checks verified encrypted DNS bootstrap routing, guarded reconnection, ordinary traffic protection, and return to healthy Auto mode. Detailed evidence belongs in docs/verification.md.
+The regression suite and CI passed. A full reboot now also passed on the current network, with healthy Auto mode, VPN DNS, protected routing, and direct traffic blocked. Detailed evidence belongs in docs/verification.md.

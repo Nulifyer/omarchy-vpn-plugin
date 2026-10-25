@@ -55,10 +55,27 @@ handshake, protected traffic, VPN DNS, and ready guard. A subsequent DNS query
 used the WireGuard link. The monitor completed successfully with its 45-second
 timeout, and there were no failed system services.
 
+## Reboot verification
+
+A user-initiated reboot on 2026-10-25 provided the first boot check for 1.5.2.
+The system started at 14:38:19 local time. The encrypted DNS upstreams became
+available at 14:38:42 and 14:38:45. NetworkManager activated the tunnel at
+14:38:57, before this verification began. No mode or reconnect command was
+issued during verification.
+
+At 14:39:40, Auto mode reported connected status, a 47-second-old handshake,
+a reachable probe, a ready guard, protected traffic, full-tunnel routing,
+and VPN DNS. The policy monitor completed successfully and no system services
+were failed. A DNS query used the WireGuard link. Ordinary external traffic
+selected WireGuard, while encrypted DNS bootstrap HTTPS retained its physical
+route. HTTP through WireGuard succeeded and the same target bound to Wi-Fi
+timed out. This verifies automatic recovery after one reboot on the current
+physical network.
+
 ## Remaining limits
 
-A full reboot has not been tested with release 1.5.2. The reconnect and routing
-checks establish live behavior, not cold-boot ordering. Cached endpoint seeding
-and timed recovery were verified through command doubles rather than by
-removing a live peer or disabling the VPN server. Uninstall and file restoration
-were tested in staged filesystems. Another physical network remains untested.
+One full reboot has passed on the current physical network. Cached endpoint
+seeding and timed recovery were verified through command doubles rather than
+by removing a live peer or disabling the VPN server. Uninstall and file
+restoration were tested in staged filesystems. Another physical network
+remains untested.
